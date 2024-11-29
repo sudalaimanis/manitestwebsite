@@ -5,30 +5,39 @@ phases:
     runtime-versions:
       docker: latest
     commands:
-      - echo "Installing prerequisites..."
+      - echo "Installing Git..."
       - apt-get update -y && apt-get install -y git
 
   pre_build:
     commands:
       - echo "Logging in to Amazon ECR..."
-      - $(aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin 471112778160.dkr.ecr.ap-south-1.amazonaws.com)
-      - echo "Removing existing files from /usr/share/nginx/html..."
-      - mkdir -p /usr/share/nginx/html && rm -rf /usr/share/nginx/html/*
+      - $(aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 471112778160.dkr.ecr.ap-south-1.amazonaws.com)
+      - echo "Pulling the NGINX base image..."
+      - docker pull nginx:latest
 
   build:
     commands:
-      - echo "Building Docker image..."
-      - docker build -t my-nginx .
-      - echo "Cloning the GitHub repository into the NGINX HTML directory..."
-      - git clone https://github.com/sudalaimanis/manitestwebsite.git /usr/share/nginx/html
-      - echo "Removing unnecessary .git files..."
-      - rm -rf /usr/share/nginx/html/.git
+      - echo "Building a new Docker image with the cloned repository..."
+      - echo "Cloning repository..."
+      - git clone https://github.com/sudalaimanis/manitestwebsite.git /tmp/manitestwebsite
+      - echo "Creating a new Dockerfile..."
+      - |
+        cat > Dockerfile <<EOF
+        FROM nginx:latest
+        RUN rm -rf /usr/share/nginx/html/*
+        COPY /tmp/manitestwebsite /usr/share/nginx/html
+        EXPOSE 80
+        CMD ["nginx", "-g", "daemon off;"]
+        EOF
+      - echo "Building the Docker image..."
+      - docker build -t 471112778160.dkr.ecr.ap-south-1.amazonaws.com/manitech:latest .
 
   post_build:
     commands:
-      - echo "Tagging and pushing the image to Amazon ECR..."
-      - docker tag my-nginx:latest <account-id>.dkr.ecr.<region>.amazonaws.com/my-nginx:latest
-      - docker push <account-id>.dkr.ecr.<region>.amazonaws.com/my-nginx:latest
+      - echo "Tagging and pushing the Docker image to Amazon ECR..."
+      - docker tag 471112778160.dkr.ecr.ap-south-1.amazonaws.com/manitech:latest 471112778160.dkr.ecr.ap-south-1.amazonaws.com/manitech:latest
+      - docker push 471112778160.dkr.ecr.ap-south-1.amazonaws.com/manitech:latest
+
 artifacts:
   files:
     - "**/*"
