@@ -1,0 +1,34 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      docker: latest
+    commands:
+      - echo "Installing prerequisites..."
+      - apt-get update -y && apt-get install -y git
+
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - $(aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin 471112778160.dkr.ecr.ap-south-1.amazonaws.com)
+      - echo "Removing existing files from /usr/share/nginx/html..."
+      - mkdir -p /usr/share/nginx/html && rm -rf /usr/share/nginx/html/*
+
+  build:
+    commands:
+      - echo "Building Docker image..."
+      - docker build -t my-nginx .
+      - echo "Cloning the GitHub repository into the NGINX HTML directory..."
+      - git clone https://github.com/sudalaimanis/manitestwebsite.git /usr/share/nginx/html
+      - echo "Removing unnecessary .git files..."
+      - rm -rf /usr/share/nginx/html/.git
+
+  post_build:
+    commands:
+      - echo "Tagging and pushing the image to Amazon ECR..."
+      - docker tag my-nginx:latest <account-id>.dkr.ecr.<region>.amazonaws.com/my-nginx:latest
+      - docker push <account-id>.dkr.ecr.<region>.amazonaws.com/my-nginx:latest
+artifacts:
+  files:
+    - "**/*"
